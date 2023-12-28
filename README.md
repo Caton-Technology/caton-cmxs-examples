@@ -1,10 +1,8 @@
-# Caton Media XStream SDK Examples
+# ![GitHub set up](https://global.caton.cloud/storage/cmxs_imgs/logo2.jpg) Caton Media XStream SDK Examples
 
 The Caton Media XStream SDK provides a seamless and efficient solution for connecting to Caton Media XStream. This empowers developers to effortlessly send and receive real-time streams across multiple endpoints. With the reliability of SLA-guaranteed services offered by Caton Media XStream, application developers can enhance users' Quality of Experience (QoE) significantly.
 
-<center>
-![GitHub set up](https://global.caton.cloud/storage/cmxs_imgs/cmxs.png "cmxs")
-</center>
+![GitHub set up](https://global.caton.cloud/storage/cmxs_imgs/cmxs.png)
 
 Here is some example codes for showing how to use SDK.
 
