@@ -4,6 +4,8 @@ The Caton Media XStream SDK provides a seamless and efficient solution for conne
 
 ![GitHub set up](https://global.caton.cloud/storage/cmxs_imgs/cmxs.png)
 
+<a href="https://github.com/caton-sdk/cmxs-sdk">Caton Media XStream github</a>
+
 Here is some example codes for showing how to use SDK.
 
 To run these examples, please visit <a href="https://caton.cloud/console/xstream">Caton Media XStream</a> and get the parameters:
