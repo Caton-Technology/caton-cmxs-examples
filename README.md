@@ -11,6 +11,8 @@ To run these examples, please visit <a href="https://caton.cloud/console/xstream
 
 and the server please use "https://caton.cloud".
 
+Please contact with us if you have any questions. Our email is github-cmxs-examples@catontechnology.com
+
 
 ## C Interface example
 
