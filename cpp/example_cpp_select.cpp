@@ -44,6 +44,7 @@
 #endif
 
 #include <cmxssdk/cmxssdk.h>
+#include <cmxssdk/cmxssdk_selector.h>
 
 // The server url provided by Caton MediaX Stream.
 static char * s_g_server = NULL;
@@ -51,8 +52,6 @@ static char * s_g_server = NULL;
 static char * s_g_device = NULL;
 // The stream key established on Caton Media XStream platform.
 static char * s_g_key = NULL;
-// > 0: as sender. = 0: as receiver. < 0: unknown
-static int s_g_mode = -1;
 
 // 1: connecting
 // 0: connected
@@ -70,6 +69,37 @@ using namespace caton::cmxs;
 #else
 #define MY_SLEEP sleep
 #endif
+
+static void selector_cb(void * userData) {
+    Receiver * receiver = reinterpret_cast<Receiver *>(userData);
+    uint8_t buf[MAX_PACKET_SIZE];
+    uint32_t size = MAX_PACKET_SIZE;
+    while (1) {
+        CMXSErr err = receiver->receive(buf, &size, 0);
+        switch (err) {
+        case CMXSERR_OK:
+            printf("%u bytes received\n", size);
+            break;
+        case CMXSERR_Again:
+            // No more data, wait select
+            return;
+        case CMXSERR_ServiceUnavailable:
+            // Service unavailable now. We can check the flow on Caton Media XStream platform.
+            printf("ServiceUnavailable\n");
+            return;
+        case CMXSERR_BufferNotEnough:
+            printf("buffer not enough\n");
+            // the needed buffer size is receiveSize
+            // re-allocate our buffer to enough
+            return;
+        case CMXSERR_InvalidArgs:
+        case CMXSERR_NotFound:
+        default:
+            // This is a code error. We need check our code.
+            return;
+        }
+    }
+}
 
 // Write our CMXSSDK listener:
 // All the notification messages will be send by this listener.
@@ -104,6 +134,9 @@ class MyListener : public CMXSListener {
 
 static void run() {
     MyListener * myListener = nullptr;
+    CMXSSDKSelectorHandle_t selectorHandle = CMXSSDK_INVALID_SELECTOR;
+    Receiver * receiver = nullptr;
+    CMXSErr err = CMXSERR_OK;
 
     // Step 1: Init CMXSSDK.
     {
@@ -118,8 +151,11 @@ static void run() {
         }
     }
 
-    // Step 2: Create Sender or Reciever.
-    //         We can create one or more Sender/Receiver.
+    // Setp 2: Create a selector
+    selectorHandle = cmxssdk_selector_create();
+
+    // Step 3: Create Reciever and add to selector.
+    //         We can create one or more Receiver.
     {
         try {
             myListener = new MyListener();
@@ -133,107 +169,53 @@ static void run() {
         streamCfg.mStreamkey = s_g_key;
 
         s_g_connecting_state = 1;
-        if (s_g_mode > 0) {
-            Sender * sender = Sender::create(&streamCfg, myListener);
-            if (!sender) {
-                printf("failed to create instance\n");
-                goto done;
-            }
+        receiver = Receiver::create(&streamCfg, myListener);
+        if (!receiver) {
+            printf("failed to create instance\n");
+            goto done;
+        }
 
-            while (s_g_connecting_state == 1) {
-                MY_SLEEP(1);
-            }
-            if (s_g_connecting_state != 0) {
-                printf("Connect failed\n");
-                Sender::destroy(sender);
-                sender = nullptr;
-                goto done;
-            }
-
-            // Step 3-1: Send data.
-            while (1) {
-                uint8_t buf[MAX_PACKET_SIZE];
-                memset(buf, 0, sizeof(buf));
-                CMXSErr err = sender->send(buf, MAX_PACKET_SIZE, 0);
-                switch (err) {
-                case CMXSERR_OK:
-                    printf("%u bytes sent\n", MAX_PACKET_SIZE);
-                    break;
-                case CMXSERR_ServiceUnavailable:
-                    // Service unavailable now. We can check the flow on Caton Media XStream platform.
-                    printf("ServiceUnavailable\n");
-                    break;
-                case CMXSERR_NoMem:
-                    break;
-                case CMXSERR_Again:
-                    break;
-                case CMXSERR_InvalidArgs:
-                case CMXSERR_NotFound:
-                default:
-                    // This is a code error. We need check our code.
-                    break;
-                }
-
-                // here simply seep 1 second and send next packet.
-                MY_SLEEP(1);
-            }
-
-            Sender::destroy(sender);
-            sender = nullptr;
-        } else {
-            Receiver * receiver = Receiver::create(&streamCfg, myListener);
-            if (!receiver) {
-                printf("failed to create instance\n");
-                goto done;
-            }
-
-            while (s_g_connecting_state == 1) {
-                MY_SLEEP(1);
-            }
-            if (s_g_connecting_state != 0) {
-                printf("Connect failed\n");
-                Receiver::destroy(receiver);
-                receiver = nullptr;
-                goto done;
-            }
-
-            // Step 3-2: Receive data.
-            while (1) {
-                uint8_t buf[MAX_PACKET_SIZE];
-                uint32_t size = MAX_PACKET_SIZE;
-                CMXSErr err = receiver->receive(buf, &size, 0);
-                switch (err) {
-                case CMXSERR_OK:
-                    printf("%u bytes received\n", size);
-                    break;
-                case CMXSERR_ServiceUnavailable:
-                    // Service unavailable now. We can check the flow on Caton Media XStream platform.
-                    printf("ServiceUnavailable\n");
-                    break;
-                case CMXSERR_BufferNotEnough:
-                    printf("buffer not enough\n");
-                    // the needed buffer size is receiveSize
-                    // re-allocate our buffer to enough
-                    break;
-                case CMXSERR_Again:
-                    // Here simply sleep 1 second
-                    // We can use Selector for monitor data received.
-                    MY_SLEEP(1);
-                    break;
-                case CMXSERR_InvalidArgs:
-                case CMXSERR_NotFound:
-                default:
-                    // This is a code error. We need check our code.
-                    break;
-                }
-            }
-
+        while (s_g_connecting_state == 1) {
+            MY_SLEEP(1);
+        }
+        if (s_g_connecting_state != 0) {
+            printf("Connect failed\n");
             Receiver::destroy(receiver);
             receiver = nullptr;
+            goto done;
+        }
+
+        err = cmxssdk_selector_add_receiver(selectorHandle, receiver, reinterpret_cast<void *>(receiver));
+        if (err != CMXSERR_OK) {
+            printf("failed to add receiver: %u\n", err);
+            goto done;
         }
     }
 
+    // Setp 4: select data
+    while (1) {
+        err = cmxssdk_selector_select(selectorHandle, 1000, selector_cb);
+        switch (err) {
+            case CMXSERR_OK:
+                break;
+            case CMXSERR_InvalidArgs:
+            case CMXSERR_SockIO:
+            default:
+                printf("err: %u\n", err);
+                break;
+        }
+    }
+
+    cmxssdk_selector_remove_receiver(selectorHandle, reinterpret_cast<void *>(receiver));
+
 done:
+    if (selectorHandle != CMXSSDK_INVALID_SELECTOR) {
+        cmxssdk_selector_destroy(selectorHandle);
+    }
+    if (receiver) {
+        Receiver::destroy(receiver);
+        receiver = nullptr;
+    }
     if (myListener) {
         delete myListener;
         myListener = nullptr;
@@ -244,11 +226,10 @@ done:
 
 static void showUsage(int argc, char *argv[]) {
     printf("Usage:\n");
-    printf("%s -s -d -k -m\n", argv[0]);
+    printf("%s -s -d -k\n", argv[0]);
     printf("  -s: The server url provided by Caton MediaX Stream.\n");
     printf("  -d: The device id unique in our app. It is the same as filled on Caton MediaX Stream platform.\n");
     printf("  -k: The stream key established on Caton Media XStream platform.\n");
-    printf("  -m: send|receive. \"send\" means running as sender. \"receive\" means running as receiver.\n");
 }
 
 static void cleanParams() {
@@ -260,7 +241,7 @@ static void cleanParams() {
 
 int main(int argc, char *argv[]) {
     int o;
-    const char * optstring =  "s:d:k:m:";
+    const char * optstring =  "s:d:k:";
     while ((o = getopt(argc, argv, optstring)) != -1) {
         switch (o) {
             case 's':
@@ -272,19 +253,12 @@ int main(int argc, char *argv[]) {
             case 'k':
                 s_g_key = strdup(optarg);
                 break;
-            case 'm':
-                if (!strcasecmp(optarg, "send")) {
-                    s_g_mode = 1;
-                } else if (!strcasecmp(optarg, "receive")) {
-                    s_g_mode = 0;
-                }
-                break;
             default:
                 break;
         }
     }
 
-    if (!s_g_server || !s_g_device || !s_g_key || s_g_mode < 0) {
+    if (!s_g_server || !s_g_device || !s_g_key) {
         showUsage(argc, argv);
         cleanParams();
         return 1;

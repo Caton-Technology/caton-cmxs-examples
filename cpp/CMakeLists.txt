@@ -26,6 +26,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 PROJECT(cmxs_cpp_example)
 
 set(MODULE_NAME cmxs_cpp_example)
+set(MODULE_NAME_SELECT cmxs_cpp_example_select)
 
 if (NOT DEFINED EXAMPLE_BUILD_TYPE)
   set(EXAMPLE_BUILD_TYPE debug)
@@ -37,7 +38,7 @@ endif ()
 add_compile_options(${CFLAGS})
 
 if (NOT CMAKE_HOST_WIN32)
-  set(CMAKE_CXX_FLAGS -std=c++11)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif ()
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -52,8 +53,10 @@ if (DEFINED EXAMPLE_LIB_DIR_CMXS)
 endif ()
 
 set (SRC_FILES ./example_cpp.cpp)
+set (SRC_FILES_SELECT ./example_cpp_select.cpp)
 if (CMAKE_HOST_WIN32)
   set(SRC_FILES ${SRC_FILES} ../common/getopt_win.c)
+  set(SRC_FILES_SELECT ${SRC_FILES_SELECT} ../common/getopt_win.c)
 endif ()
 
 if (DEFINED EXAMPLE_OUTPUT_DIR)
@@ -62,3 +65,4 @@ endif ()
 
 link_libraries(cmxssdk)
 add_executable(${MODULE_NAME} ${SRC_FILES})
+add_executable(${MODULE_NAME_SELECT} ${SRC_FILES_SELECT})

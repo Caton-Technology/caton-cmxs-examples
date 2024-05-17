@@ -26,6 +26,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 PROJECT(cmxs_c_example)
 
 set(MODULE_NAME cmxs_c_example)
+set(MODULE_NAME_SELECT cmxs_c_example_select)
 
 if (NOT DEFINED EXAMPLE_BUILD_TYPE)
   set(EXAMPLE_BUILD_TYPE debug)
@@ -48,8 +49,10 @@ if (DEFINED EXAMPLE_LIB_DIR_CMXS)
 endif ()
 
 set (SRC_FILES ./example_c.c)
+set (SRC_FILES_SELECT ./example_c_select.c)
 if (CMAKE_HOST_WIN32)
   set(SRC_FILES ${SRC_FILES} ../common/getopt_win.c)
+  set(SRC_FILES_SELECT ${SRC_FILES_SELECT} ../common/getopt_win.c)
 endif ()
 
 if (DEFINED EXAMPLE_OUTPUT_DIR)
@@ -58,3 +61,4 @@ endif ()
 
 link_libraries(cmxssdk)
 add_executable(${MODULE_NAME} ${SRC_FILES})
+add_executable(${MODULE_NAME_SELECT} ${SRC_FILES_SELECT})

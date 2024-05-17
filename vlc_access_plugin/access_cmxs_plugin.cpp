@@ -29,8 +29,8 @@
  * Following the VLC plugin install method.
  *
  * Running:
- * The url: // cmxs://[[server]?[device=xx&][key=xx&][data_len=xx]]
- * You can provide the some or all of server, device, key and data_len parameters by url or dialog settings.
+ * The url: cmxs://server[[?device=xx[&key=xx][&data_len=xx]]
+ * You can provide the some or all of device, key and data_len parameters by url or dialog settings.
  * This is a url example: cmxs://hello.caton.cloud?device=hello_device&key=hello_key&data_len=1234
  *
  */
@@ -107,9 +107,6 @@ class CxsReceiver : public CMXSListener {
         uint32_t param1,
         const void * param2) override {
         switch (message) {
-            case CMXSMSG_DataReceived:
-                // Here ignore this message. Receive data when VLC call the pf_block function.
-                break;
             case CMXSMSG_ServerConnected:
                 // CMXSSDK says server connected, now we can receive data
                 mConnected = true;
@@ -134,8 +131,6 @@ class CxsReceiver : public CMXSListener {
                 break;
             case CMXSMSG_Stat:
                 break;
-            case CMXSMSG_Reconnecting:
-                break;
             case CMXSMSG_ERROR:
                 {
                     switch (param1) {
@@ -159,7 +154,6 @@ class CxsReceiver : public CMXSListener {
             case CMXSMSG_WARNING:
                 {
                     switch (param1) {
-                        case CMXSERR_SockCannotReadEmpty:
                         case CMXSERR_Congestion:
                         case CMXSERR_NotReceiveDataInTime:
                         default:
@@ -273,7 +267,7 @@ class CxsReceiver : public CMXSListener {
             return nullptr;
         }
 
-        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, dataLen, 100);
+        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, &dataLen, 100);
         switch (ret) {
             case CMXSERR_OK:
                 pkt->i_buffer = dataLen;
@@ -333,7 +327,7 @@ class CxsReceiver : public CMXSListener {
         }
     }
 
-    // cmxs://[[server]?[device=xx&][key=xx&][data_len=xx]]
+    // cmxs://server[[?device=xx[&key=xx][&data_len=xx]]
     void parseLocation(const char * location) {
         #define SET_SERVER_SETTING(_p) do {\
             mSettings[SETTING_ITEM_SERVER] = std::string("https://") + _p;\
@@ -477,7 +471,6 @@ set_subcategory(SUBCAT_INPUT_ACCESS);
 set_capability("access", 10);
 set_callbacks(cmxsOpen, cmxsClose);
 add_shortcut("cmxs");
-add_string(CxsReceiver::SETTING_ITEM_SERVER, "", "server", "cmxs server url provided by Caton.", false)
 add_string(CxsReceiver::SETTING_ITEM_DEVICE, "", "device", "unique device id in your Caton Id.", false)
 add_string(CxsReceiver::SETTING_ITEM_KEY, "", "key", "cmxs key provided by Caton.", false)
 add_string(CxsReceiver::SETTING_ITEM_DATA_LEN, "1316", "data length(bytes)", "Data max length in bytes.", false)

@@ -26,9 +26,9 @@
  * Running:
  * Execute it as the following:
  * For sending data:
- * ./cmxs_c_example -s hello.caton.cloud -d hello_device -k hello_key -m send
+ * ./cmxs_c_example -s https://hello.caton.cloud -d hello_device -k hello_key -m send
  * For receiving data:
- * ./cmxs_c_example -s hello.caton.cloud -d hello_device2 -k hello_key2 -m receive
+ * ./cmxs_c_example -s https://hello.caton.cloud -d hello_device2 -k hello_key2 -m receive
  */
 
 #include <stdio.h>
@@ -85,7 +85,6 @@ static void my_callback(uint32_t message,
             printf("connect failed: %u(%s)\n", param1, data->mErrorInfo);
             s_g_connecting_state = -1;
         }
-    case CMXSMSG_DataReceived:
     case CMXSMSG_Stat:
     case CMXSMSG_ERROR:
     case CMXSMSG_WARNING:
@@ -94,7 +93,7 @@ static void my_callback(uint32_t message,
     }
 }
 
-void run() {
+static void run() {
     // Step 1: Init CMXSSDK.
     {
         CMXSConfig_t cmxsCfg;
@@ -199,8 +198,7 @@ void run() {
                     break;
                 case CMXSERR_Again:
                     // Here simply sleep 1 second
-                    // We can check the message C3SDKMSG_DataReceived for next cmxssdk_receiver_receive() calling
-                    //   or call it periodly.
+                    // We can use Selector for monitor data received.
                     MY_SLEEP(1);
                     break;
                 case CMXSERR_InvalidArgs:
