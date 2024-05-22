@@ -267,7 +267,7 @@ class CxsReceiver : public CMXSListener {
             return nullptr;
         }
 
-        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, &dataLen, 100);
+        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, dataLen, 100);
         switch (ret) {
             case CMXSERR_OK:
                 pkt->i_buffer = dataLen;

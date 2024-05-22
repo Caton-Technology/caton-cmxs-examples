@@ -75,7 +75,7 @@ static void selector_cb(void * userData) {
     uint8_t buf[MAX_PACKET_SIZE];
     uint32_t size = MAX_PACKET_SIZE;
     while (1) {
-        CMXSErr err = receiver->receive(buf, &size, 0);
+        CMXSErr err = receiver->receive(buf, size, 0);
         switch (err) {
         case CMXSERR_OK:
             printf("%u bytes received\n", size);
