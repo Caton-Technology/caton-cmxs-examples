@@ -144,7 +144,7 @@ then run nmake to build it.
 
 VLC access plugin example shows how to write a VLC access plugin by SDK.
 
-VLC 3.0.16 is required.
+VLC 3.0.16 is required.  The source code can be got from https://github.com/videolan/vlc . The binary can be got from https://www.videolan.org/vlc/releases/3.0.16.html .
 
 
 ### Build the example
