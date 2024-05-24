@@ -3,7 +3,6 @@
 The Caton Media XStream SDK provides a seamless and efficient solution for connecting to Caton Media XStream. This empowers developers to effortlessly send and receive real-time streams across multiple endpoints. With the reliability of SLA-guaranteed services offered by Caton Media XStream, application developers can enhance users' Quality of Experience (QoE) significantly.
 
 <center>
-![GitHub set up](https://dss0.bdstatic.com/5aV1bjqh_Q23odCf/static/superman/img/topnav/newfanyi-da0cea8f7e.png "cmxs")
 <img src="https://global.caton.cloud/storage/cmxs_imgs/cmxs.png" />
 </center>
 
