@@ -97,6 +97,15 @@ class MyListener : public CMXSListener {
 };
 
 MyListener * s_g_myListener;
+void myLogCallback(int level, const char * format, ...) {
+    UNUSED_PARAMETER(level);
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+        blog(LOG_INFO, "%s", buffer);
+}
 struct ffmpeg_audio_info {
     AVStream *stream;
     AVCodecContext *ctx;
@@ -164,21 +173,9 @@ static bool new_stream(struct cmxs_output *ffm, AVStream **stream,
     return true;
 }
 
-static void videoenc_set_params(struct cmxs_output *stream) {
-    obs_encoder_t *vencoder = obs_output_get_video_encoder(stream->output);
-    obs_data_t *settings = obs_encoder_get_settings(vencoder);
 
-    obs_data_set_string(settings, "preset", "ultrafast");
 
-    obs_data_set_string(settings, "tune", "zerolatency");
-    obs_data_set_int(settings, "keyint_sec", 1);
-    obs_data_set_bool(settings, "use_bufsize", true);
-    obs_data_set_string(settings, "rate_control", "CRF");
-    obs_data_set_string(settings, "profile", "baseline");
-    obs_encoder_update(vencoder, settings);
 
-    obs_data_release(settings);
-}
 
 void CreateVideoEncoder(void *data) {
     blog(LOG_INFO,
@@ -207,7 +204,7 @@ void CreateVideoEncoder(void *data) {
     obs_encoder_release(encoder);
     obs_encoder_set_video(stream->videoEncoder, obs_get_video());
     obs_output_set_video_encoder(stream->output, stream->videoEncoder);
-    videoenc_set_params(stream);
+
     struct obs_video_info ovi;
 
     if (!obs_get_video_info(&ovi)) {
@@ -663,7 +660,7 @@ static void *cmxs_output_create(obs_data_t *settings, obs_output_t *output) {
     #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 9, 100)
         av_register_all();
     #endif
-
+    cmxssdk_set_log_callback(myLogCallback);
     return stream;
 }
 

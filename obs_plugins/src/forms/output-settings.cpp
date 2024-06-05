@@ -73,7 +73,6 @@ OutputSettings::OutputSettings(QWidget *parent)
         comboBox->addItem(obs_module_text("CMXSPlugin.wifi"));
         comboBox->addItem(obs_module_text("CMXSPlugin.cable"));
         comboBox->addItem(obs_module_text("CMXSPlugin.cellular"));
-        comboBox->addItem(obs_module_text("CMXSPlugin.unknown"));
         if (nicIsWifi) {
             comboBox->setCurrentIndex(comboBox->findText(obs_module_text("CMXSPlugin.wifi")));
         } else {
@@ -109,7 +108,7 @@ void OutputSettings::onFormAccepted() {
         std::string label = pair.first;
         QCheckBox* checkBox = pair.second.first;
         QComboBox* comboBox = pair.second.second;
-        // 判断 QCheckBox 是否选中
+
         if (checkBox->isChecked()) {
             QString selectedText = comboBox->currentText();
             std::string selectedValue = selectedText.toStdString();
@@ -125,7 +124,7 @@ void OutputSettings::onFormAccepted() {
         }
     }
     #endif
-
+    conf->Save();
     main_output_gbl_init();
     conf->isStart = ui->enableStreamingCheckbox->isChecked();
     blog(LOG_INFO,
@@ -133,7 +132,6 @@ void OutputSettings::onFormAccepted() {
         qPrintable(conf->host),
         qPrintable(conf->deviceId),
         qPrintable(conf->streamName));
-    conf->Save();
     if (conf->isStart) {
         if (main_output_is_running()) {
             main_output_stop();
@@ -150,7 +148,6 @@ void OutputSettings::showEvent(QShowEvent *event) {
     if (s_g_cmxs_init) {
         ui->GlobalHost->setText(s_g_host);
         ui->GlobalDeviceId->setText(s_g_deviceId);
-        blog(LOG_INFO, "Set %s, %s", s_g_host, s_g_deviceId);
     } else {
         ui->GlobalHost->setText(conf->host);
         ui->GlobalDeviceId->setText(conf->deviceId);

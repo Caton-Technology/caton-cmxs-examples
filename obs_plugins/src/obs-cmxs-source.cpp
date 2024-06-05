@@ -444,9 +444,7 @@ obs_properties_t *cmxs_source_getproperties(void *) {
                             kCMXSLinkDeviceTypeWiFi);
         }
         obs_property_list_add_int(source_list, obs_module_text("CMXSPlugin.cellular"),
-                            kCMXSLinkDeviceTypeCellular);
-        obs_property_list_add_int(source_list, obs_module_text("CMXSPlugin.unknown"),
-                            kCMXSLinkDeviceTypeUnknown);
+                             kCMXSLinkDeviceTypeCellular);
     }
 #endif
     return props;
@@ -470,6 +468,10 @@ static int putPkt2Q(packet_queue_t *q, std::mutex *mtx, AVPacket *p) {
     return ret;
 }
 
+int InterruptCallback(void* ctx) {
+    cmxs_source_t* s = reinterpret_cast<cmxs_source_t*>(ctx);
+    return s->running ? 0 : 1;
+}
 
 void* av_source_thread(void *data) {
     cmxs_source_t* s = reinterpret_cast<cmxs_source_t *>(data);
@@ -482,6 +484,8 @@ void* av_source_thread(void *data) {
     av_dict_set(&options, "buffer_size", "5242880", 0);  // 5MB
     if (nullptr == s->cmxs_ffmpeg_source) {
         s->cmxs_ffmpeg_source = avformat_alloc_context();
+        s->cmxs_ffmpeg_source->interrupt_callback.callback = InterruptCallback;
+        s->cmxs_ffmpeg_source->interrupt_callback.opaque = s;
     }
 
     while (s->running) {
@@ -700,8 +704,7 @@ void *cmxs_source_thread(void *data) {
             break;
         }
     }
-    sendto(sockfd, (const char *)buf, 1, 0,
-                           (struct sockaddr*)&server_addr, sizeof(server_addr));
+
     delete [] buf;
     blog(LOG_INFO, "exit source_thread");
 
@@ -947,7 +950,6 @@ void cmxs_source_update(void *data, obs_data_t *settings) {
         const std::string labelStr = entry.first;
         const std::string lableName = "netIntf_"+labelStr+"_enabled";
         const std::string listName = labelStr+"_type";
-        blog(LOG_INFO, "Get config for: %s", labelStr.c_str());
         bool enabled = obs_data_get_bool(settings, lableName.c_str());
         if (enabled) {
             int value = obs_data_get_int(settings, listName.c_str());
