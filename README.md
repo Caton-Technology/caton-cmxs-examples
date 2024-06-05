@@ -215,34 +215,40 @@ Please download <a href="https://github.com/obsproject/obs-plugintemplate">obs p
 
 #### On Windows
 
-1. run OBS.
+1. Copy the cmxssdk.dll and obs-cmxs.dll to the OBS plugin path (normally Program Files\obs-studio\obs-plugins\64bit).
 
-2. Config global parameters.
+2. run OBS.
+
+3. Config global parameters.
 
     "Tool" menu -> Open CMXS settings, fill "Server address" and "DeviceId"
 
-3. Config output parameters.
+4. Config output parameters.
 
     "Tool" menu -> Open CMXS settings, fill "Key", check the "Enable Streaming" checkbox if you want to send data immediately.
 
-4. Config source parameters.
+5. Config source parameters.
 
     Right click "source" in OBS main UI, select "add" -> "CMXS source". Fill "Internal Port used by plugin" with a unique port. Fill "key".
 
 
 #### On macOS
 
-1. Run OBS.
+1. Install the cmxssdk, you can copy the dylib files to /usr/local/lib
 
-2. Config global parameters.
+2. Copy obs-cmxs.plugin directory to ~/Library/Application Support/obs-studio/plugins/
+
+3. Run OBS.
+
+4. Config global parameters.
 
     "Tool" menu -> Open CMXS settings, fill "Server address" and "DeviceId"
 
-3. Config output parameters.
+5. Config output parameters.
 
     "Tool" menu -> Open CMXS settings, fill "Key" and select NIC if necessary, check the "Enable Streaming" checkbox if you want to send data immediately.
 
-4. Config source parameters.
+6. Config source parameters.
 
     Right click "source" in OBS main UI, select "add" -> "CMXS source". Fill "Internal Port used by plugin" with a unique port. Fill "key" and select NIC if necessary.
 
