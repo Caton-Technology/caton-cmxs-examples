@@ -234,7 +234,7 @@ Please download <a href="https://github.com/obsproject/obs-plugintemplate">obs p
 
 #### On macOS
 
-1. Install the cmxssdk, you can copy the dylib files to /usr/local/lib
+1. Install the cmxssdk, you can copy the dylib files to /path/to/obs/Contents/Frameworks/
 
 2. Copy obs-cmxs.plugin directory to ~/Library/Application Support/obs-studio/plugins/
 
