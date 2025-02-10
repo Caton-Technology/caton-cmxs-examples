@@ -61,22 +61,22 @@ void releaseStreamParamMemory(CMXSStreamParam_t& streamParam) {
 bool getNicType(const std::string& bsdDeviceName, bool& isWifi) {
     CFStringRef name_CFString = CFStringCreateWithCString(kCFAllocatorDefault,
         bsdDeviceName.c_str(), kCFStringEncodingUTF8);
-    if (name_CFString == NULL) {
+    if (!name_CFString) {
         return false;
     }
     CFArrayRef networkInterfaces = SCNetworkInterfaceCopyAll();
-    if (networkInterfaces != nullptr) {
+    if (networkInterfaces) {
         CFIndex count = CFArrayGetCount(networkInterfaces);
         for (CFIndex i = 0; i < count; ++i) {
             SCNetworkInterfaceRef this_if = (SCNetworkInterfaceRef)CFArrayGetValueAtIndex(networkInterfaces, i);;
             CFStringRef this_if_name = SCNetworkInterfaceGetBSDName(this_if);
-            if (this_if_name != nullptr) {
+            if (this_if_name) {
                 if (!CFEqual(name_CFString, this_if_name)) {
                     continue;
                 }
                 CFStringRef hardwareType = SCNetworkInterfaceGetInterfaceType(this_if);
                 // const char *cs = CFStringGetCStringPtr(hardwareType, kCFStringEncodingMacRoman);
-                if (hardwareType != nullptr) {
+                if (hardwareType) {
                     // name of wifi device contain "Wi-Fi" or "802"
                     isWifi = (CFStringFind(hardwareType, CFSTR("Wi-Fi"), 0).location != kCFNotFound) ||
                     (CFStringFind(hardwareType, CFSTR("802"), 0).location != kCFNotFound);

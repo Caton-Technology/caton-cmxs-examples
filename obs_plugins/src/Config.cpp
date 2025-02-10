@@ -42,7 +42,7 @@ Config::Config() {
 }
 
 void Config::Load() {
-    config_t *obs_config = obs_frontend_get_global_config();
+    config_t *obs_config = obs_frontend_get_app_config();
     if (obs_config) {
         host = config_get_string(obs_config, SECTION_NAME,
             PARAM_GLOBAL_HOST);
@@ -58,7 +58,7 @@ void Config::Load() {
 }
 
 void Config::Save() {
-    config_t *obs_config = obs_frontend_get_global_config();
+    config_t *obs_config = obs_frontend_get_app_config();
     if (obs_config) {
         config_set_string(obs_config, SECTION_NAME,
                 PARAM_GLOBAL_HOST, host.toUtf8().constData());

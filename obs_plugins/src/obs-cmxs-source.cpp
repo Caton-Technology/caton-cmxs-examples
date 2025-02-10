@@ -25,7 +25,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/profiler.h>
-#include <util/circlebuf.h>
 #include <vector>
 #include <unordered_map>
 #include "plugin-main.h"
@@ -284,18 +283,26 @@ const char *cmxs_source_getname(void *) {
 void cmxs_source_thread_stop(cmxs_source_t *s) {
     if (s->running) {
         s->running = false;
-        pthread_join(s->cmxs_thread, NULL);
-        pthread_join(s->av_thread, NULL);
-        pthread_join(s->video_thread, NULL);
-        pthread_join(s->audio_thread, NULL);
+        pthread_join(s->cmxs_thread, nullptr);
+        pthread_join(s->av_thread, nullptr);
+        pthread_join(s->video_thread, nullptr);
+        pthread_join(s->audio_thread, nullptr);
         blog(LOG_INFO, "stop pulling done");
-        if (s->videoCodecContext != NULL) {
-            avcodec_close(s->videoCodecContext);
+        if (s->videoCodecContext) {
+            // avcodec_close(s->videoCodecContext);
             avcodec_free_context(&s->videoCodecContext);
+            s->videoCodecContext = nullptr;
         }
+        if (s->audioCodecContextMap) {
         for (auto& audioContextPair : *(s->audioCodecContextMap)) {
-            avcodec_close(audioContextPair.second);
+                // avcodec_close(audioContextPair.second);
             avcodec_free_context(&audioContextPair.second);
+            }
+        }
+        if (s->cmxs_ffmpeg_source) {
+            avformat_close_input(&s->cmxs_ffmpeg_source);
+            avformat_free_context(s->cmxs_ffmpeg_source);
+            s->cmxs_ffmpeg_source = nullptr;
         }
     }
 }
@@ -345,12 +352,6 @@ void destroyObsData(void *data) {
     }
 
     if (s->audioCodecContextMap) {
-        for (auto& audioContextPair : *(s->audioCodecContextMap)) {
-            avcodec_close(audioContextPair.second);
-            avcodec_free_context(&audioContextPair.second);
-        }
-
-        // Assuming AVCodecContext* is managed elsewhere, do not delete them here
         delete s->audioCodecContextMap;
         s->audioCodecContextMap = nullptr;
     }
@@ -379,7 +380,7 @@ static void cmxs_source_destroy(void *data) {
     struct cmxs_source *stream = static_cast<struct cmxs_source *>(data);
     cmxs_source_thread_stop(stream);
     free(const_cast<char*>(stream->streamKey));
-    stream->streamKey = NULL;
+    stream->streamKey = nullptr;
 
     if (stream->receiver) {
         blog(LOG_INFO, "destroy receiver");
@@ -477,12 +478,12 @@ void* av_source_thread(void *data) {
     cmxs_source_t* s = reinterpret_cast<cmxs_source_t *>(data);
     char udp_url[50];
     snprintf(udp_url, sizeof(udp_url), "udp://0.0.0.0:%d", s->internalPort);
-    AVDictionary* options = NULL;
+    AVDictionary* options = nullptr;
 
     av_dict_set(&options, "overrun_nonfatal", "1", 0);
     av_dict_set(&options, "fifo_size", "278876", 0);   // 50MB
     av_dict_set(&options, "buffer_size", "5242880", 0);  // 5MB
-    if (nullptr == s->cmxs_ffmpeg_source) {
+    if (!s->cmxs_ffmpeg_source) {
         s->cmxs_ffmpeg_source = avformat_alloc_context();
         s->cmxs_ffmpeg_source->interrupt_callback.callback = InterruptCallback;
         s->cmxs_ffmpeg_source->interrupt_callback.opaque = s;
@@ -490,7 +491,7 @@ void* av_source_thread(void *data) {
 
     while (s->running) {
         if (s->dataArrived) {
-            if (avformat_open_input(&s->cmxs_ffmpeg_source, udp_url, NULL, &options) != 0) {
+            if (avformat_open_input(&s->cmxs_ffmpeg_source, udp_url, nullptr, &options) != 0) {
                 blog(LOG_INFO, "Failed to open UDP input");
                 continue;
             } else {
@@ -506,7 +507,7 @@ void* av_source_thread(void *data) {
         return nullptr;
     }
 
-    if (avformat_find_stream_info(s->cmxs_ffmpeg_source, NULL) < 0) {
+    if (avformat_find_stream_info(s->cmxs_ffmpeg_source, nullptr) < 0) {
         blog(LOG_INFO, "Failed to retrieve stream information");
         return nullptr;
     }
@@ -525,10 +526,10 @@ void* av_source_thread(void *data) {
         blog(LOG_INFO, "No stream found in the input");
         return nullptr;
     }
-    s->videoCodecContext = NULL;
+    s->videoCodecContext = nullptr;
     if (s->videoStreamIndex != -1) {
-        s->videoCodecContext = avcodec_alloc_context3(NULL);
-        if (NULL == s->videoCodecContext) {
+        s->videoCodecContext = avcodec_alloc_context3(nullptr);
+        if (!s->videoCodecContext) {
             blog(LOG_INFO, "videoCodecContext is null");
         }
         if (0 > avcodec_parameters_to_context(s->videoCodecContext,
@@ -536,20 +537,20 @@ void* av_source_thread(void *data) {
             blog(LOG_INFO, "avcodec_parameters_to_context failed");
         }
         const AVCodec *videoCodec = avcodec_find_decoder(s->videoCodecContext->codec_id);
-        if (NULL == videoCodec) {
+        if (!videoCodec) {
             blog(LOG_INFO, "videoCodec is null");
         }
-        if (0 > avcodec_open2(s->videoCodecContext, videoCodec, NULL)) {
+        if (0 > avcodec_open2(s->videoCodecContext, videoCodec, nullptr)) {
             blog(LOG_INFO, "avcodec_open2 is null");
         }
     }
     if (s->audioStreamIndices->size() > 0) {
         for (int audioStreamIndex : *(s->audioStreamIndices)) {
-            AVCodecContext *audioCodecContext = avcodec_alloc_context3(NULL);
+            AVCodecContext *audioCodecContext = avcodec_alloc_context3(nullptr);
             avcodec_parameters_to_context(audioCodecContext,
                                         s->cmxs_ffmpeg_source->streams[audioStreamIndex]->codecpar);
             const AVCodec *audioCodec = avcodec_find_decoder(audioCodecContext->codec_id);
-            if (avcodec_open2(audioCodecContext, audioCodec, NULL) < 0) {
+            if (avcodec_open2(audioCodecContext, audioCodec, nullptr) < 0) {
                 blog(LOG_INFO, "avcodec_open2 failed for audio stream: %d", audioStreamIndex);
                 continue;
             }
@@ -571,7 +572,7 @@ void* av_source_thread(void *data) {
             blog(LOG_INFO, "av_read_frame failed, Exit, %s, %d", errbuf, ret);
             continue;
         }
-        if (packet->stream_index == s->videoStreamIndex && s->videoCodecContext != NULL) {
+        if (packet->stream_index == s->videoStreamIndex && s->videoCodecContext != nullptr) {
             putPkt2Q(s->videoQ, s->video_mtx, packet);
         } else {
             putPkt2Q(s->audioQ, s->audio_mtx, packet);
@@ -589,22 +590,8 @@ void* av_source_thread(void *data) {
         // blog(LOG_INFO,"Insert to s->audioQ");
         s->audioQ->clear();
     }
-    if (s->videoCodecContext) {
-        avcodec_free_context(&s->videoCodecContext);
-        s->videoCodecContext = nullptr;
-    }
-    for (int audioStreamIndex : *(s->audioStreamIndices)) {
-    AVCodecContext *audioCodecContext = (*s->audioCodecContextMap)[audioStreamIndex];
-    if (audioCodecContext) {
-            avcodec_free_context(&audioCodecContext);
-            s->audioCodecContextMap->erase(audioStreamIndex);
-        }
-    }
     av_packet_free(&packet);
-    avformat_close_input(&s->cmxs_ffmpeg_source);
     av_dict_free(&options);
-    avformat_free_context(s->cmxs_ffmpeg_source);
-    s->cmxs_ffmpeg_source = nullptr;
     blog(LOG_INFO, "exit av_thread");
     return nullptr;
 }
@@ -754,6 +741,10 @@ void* av_video_thread(void *data) {
             locker.unlock();
             while (!msgQSwap.empty()) {
                 AVPacket* packet = msgQSwap.front();
+                if (!packet) {
+                    msgQSwap.pop_front();
+                    continue;
+                }
                 ret = avcodec_send_packet(s->videoCodecContext, packet);
                 if (ret < 0) {
                     blog(LOG_INFO, "Error submitting the packet to the decoder");
@@ -902,7 +893,7 @@ void cmxs_source_update(void *data, obs_data_t *settings) {
             s_g_host = nullptr;
         }
         s_g_host = strdup(cmxsCfg.mServer);
-        if (s_g_host == NULL) {
+        if (!s_g_host) {
             return;
         }
 
@@ -912,7 +903,7 @@ void cmxs_source_update(void *data, obs_data_t *settings) {
         }
 
         s_g_deviceId = strdup(cmxsCfg.mDeviceId);
-        if (s_g_deviceId == NULL) {
+        if (!s_g_deviceId) {
             return;
         }
         CMXSErr err = CMXSSDK::init(&cmxsCfg);

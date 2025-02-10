@@ -25,7 +25,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/profiler.h>
-#include <util/circlebuf.h>
 #include <vector>
 #include <unordered_map>
 #include "plugin-main.h"
@@ -145,7 +144,7 @@ const char *cmxs_output_getname(void *) {
     return obs_module_text("CMXSPlugin.OutputName");
 }
 
-int write_buffer(void *opaque, uint8_t *buf, int buf_size) {
+int write_buffer(void *opaque, const uint8_t *buf, int buf_size) {
     struct cmxs_output *stream = static_cast<struct cmxs_output *>(opaque);
 
     CMXSErr err = stream->sender->send(buf, buf_size, -1);
@@ -161,7 +160,7 @@ static bool new_stream(struct cmxs_output *ffm, AVStream **stream,
                const char *name) {
     blog(LOG_INFO, "Enter avformat_new_stream for encoder '%s', %p, %p\n",
             name, ffm, ffm->cmxs_ffmpeg_output);
-    *stream = avformat_new_stream(ffm->cmxs_ffmpeg_output, NULL);
+    *stream = avformat_new_stream(ffm->cmxs_ffmpeg_output, nullptr);
     if (!*stream) {
         blog(LOG_INFO, "Couldn't create stream for encoder '%s'\n",
             name);
@@ -172,10 +171,6 @@ static bool new_stream(struct cmxs_output *ffm, AVStream **stream,
     (*stream)->id = ffm->cmxs_ffmpeg_output->nb_streams - 1;
     return true;
 }
-
-
-
-
 
 void CreateVideoEncoder(void *data) {
     blog(LOG_INFO,
@@ -234,7 +229,7 @@ void CreateVideoEncoder(void *data) {
 static bool create_audio_stream(struct cmxs_output *stream,
                 const char *name, int idx) {
     AVCodecContext *context;
-    AVStream *avstream = NULL;
+    AVStream *avstream = nullptr;
     struct obs_audio_info aoi;
     int channels = 2;
     (void)channels;
@@ -405,21 +400,16 @@ static bool cmxs_output_start(void *data) {
     #else
         const AVOutputFormat *output_format;
     #endif
-    output_format = av_guess_format("mpegts", NULL, NULL);
-    if (output_format == NULL) {
+    output_format = av_guess_format("mpegts", nullptr, nullptr);
+    if (!output_format) {
         blog(LOG_INFO,
                     "Couldn't set output format to mpegts");
         return false;
-    } else {
-        blog(LOG_INFO, "Output format name and long_name: %s, %s",
-             output_format->name ? output_format->name : "unknown",
-             output_format->long_name ? output_format->long_name
-                          : "unknown");
     }
 
 
     blog(LOG_INFO, "avformat_alloc_output_context2\n");
-    int ret = avformat_alloc_output_context2(&stream->cmxs_ffmpeg_output, NULL, "mpegts", NULL);
+    int ret = avformat_alloc_output_context2(&stream->cmxs_ffmpeg_output, nullptr, "mpegts", nullptr);
     if (ret < 0) {
         blog(LOG_INFO, "avformat_alloc_output_context2 failed\n");
         return false;
@@ -428,7 +418,7 @@ static bool cmxs_output_start(void *data) {
     CreateAudioEncoder(data);
     CreateVideoEncoder(data);
 
-    ret = avformat_write_header(stream->cmxs_ffmpeg_output, NULL);
+    ret = avformat_write_header(stream->cmxs_ffmpeg_output, nullptr);
     if (ret < 0) {
         blog(LOG_INFO,
          "avformat_write_header: exit failed, %d", ret);
@@ -489,10 +479,10 @@ static bool cmxs_output_start(void *data) {
         return false;
     }
     releaseStreamParamMemory(streamCfg);
-    unsigned char* outbuffer = NULL;
+    unsigned char* outbuffer = nullptr;
     outbuffer = (unsigned char*)av_malloc(1316);
     stream->cmxs_ffmpeg_output->pb = avio_alloc_context(outbuffer, 1316,
-                                                AVIO_FLAG_WRITE, data, NULL, write_buffer, NULL);
+                                                AVIO_FLAG_WRITE, data, nullptr, write_buffer, nullptr);
     if (!stream->cmxs_ffmpeg_output->pb) {
         av_freep(&outbuffer);
         return false;
@@ -520,7 +510,7 @@ static void cmxs_output_stop(void *data, uint64_t ts) {
     os_atomic_set_bool(&stream->stopping, true);
 
     free(const_cast<char*>(stream->streamKey));
-    stream->streamKey = NULL;
+    stream->streamKey = nullptr;
 
     Sender::destroy(stream->sender);
     s_g_connecting_state = 1;
@@ -548,7 +538,7 @@ static AVCodecContext *get_codec_context(cmxs_output *ffm,
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 #include <libavfilter/buffersink.h>
@@ -626,8 +616,8 @@ void cmxs_write_packet(struct cmxs_output *stream,
         }
     }
     int ret = 0;
-    if (packet->data == NULL) {
-        blog(LOG_INFO, "packet->data == NULL");
+    if (!packet->data) {
+        blog(LOG_INFO, "packet->data == nullptr");
         av_packet_free(&packet);
         return;
     }

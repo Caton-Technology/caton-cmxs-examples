@@ -193,7 +193,7 @@
    <item row="6" column="0" alignment="Qt::AlignCenter">
     <widget class="QLabel" name="versionLabel">
         <property name="text">
-            <string>Copyright © 2023 Caton Technology. All rights reserved. Version 1.4.3</string>
+            <string>Copyright © 2025 Caton Technology. All rights reserved. Version 1.4.3</string>
         </property>
     </widget>
    </item>
