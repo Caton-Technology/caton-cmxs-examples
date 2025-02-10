@@ -68,7 +68,7 @@ void main_output_gbl_init() {
         s_g_host = nullptr;
     }
     s_g_host = strdup(cmxsCfg.mServer);
-    if (s_g_host == NULL) {
+    if (!s_g_host) {
         return;
     }
     if (s_g_deviceId) {
@@ -76,7 +76,7 @@ void main_output_gbl_init() {
         s_g_deviceId = nullptr;
     }
     s_g_deviceId = strdup(cmxsCfg.mDeviceId);
-    if (s_g_deviceId == NULL) {
+    if (!s_g_deviceId) {
         return;
     }
     CMXSErr err = CMXSSDK::init(&cmxsCfg);
