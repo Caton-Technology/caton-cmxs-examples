@@ -40,3 +40,43 @@ void main_output_start();
 void main_output_stop();
 bool main_output_is_running();
 void main_output_deinit();
+
+// Global listener. All the global notification messages will be send by this listener.
+class MyGlobalListener : public CMXSListener {
+ public:
+    void onMessage(uint32_t message,
+        uint32_t param1,
+        const void * param2) noexcept override {
+        switch (message) {
+            case CMXSMSG_ERROR:
+                {
+                    switch (param1) {
+                        case CMXSERR_DataPortDetectFailed:
+                            {
+                                const CMXSDataPortDetectFailedMsgData_t * data =
+                                    reinterpret_cast<const CMXSDataPortDetectFailedMsgData_t *>(param2);
+                                for (uint32_t i = 0; i < data->mPortsCount; ++i) {
+                                    printf("data port detect failed, expect port: %u\n", data->mPorts[i]);
+                                }
+                            }
+                            break;
+                        case CMXSERR_NoMem:
+                            {
+                                printf("NoMem\n");
+                            }
+                            break;
+                        default:
+                            printf("error: %d(%s)\n", param1, cmxssdk_error_str(param1));
+                            break;
+                    }
+                }
+                break;
+        default:
+            printf("message: %u, param1: %u\n", message, param1);
+            break;
+        }
+    }
+};
+
+// Global instance of MyGlobalListener, used by CMXSSDK::init
+extern MyGlobalListener* g_globalListener;

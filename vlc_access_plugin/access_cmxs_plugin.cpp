@@ -70,15 +70,15 @@ namespace cmxs_plugin {
 
 using namespace caton::cmxs;
 
-class CxsReceiver : public CMXSListener {
+class CMXSReceiver : public CMXSListener {
  public:
     static constexpr char * SETTING_ITEM_SERVER = "server";
     static constexpr char * SETTING_ITEM_DEVICE = "device";
     static constexpr char * SETTING_ITEM_KEY = "key";
     static constexpr char * SETTING_ITEM_DATA_LEN = "data_len";
 
-    CxsReceiver() = delete;
-    explicit CxsReceiver(vlc_object_t * obj)
+    CMXSReceiver() = delete;
+    explicit CMXSReceiver(vlc_object_t * obj)
         : mVlcObj(obj),
         mVlcIntF(reinterpret_cast<intf_thread_t *>(obj)),
         mDataLen(0),
@@ -98,68 +98,117 @@ class CxsReceiver : public CMXSListener {
         access->p_sys = this;
     }
 
-    ~CxsReceiver() {
+    ~CMXSReceiver() {
         stop();
     }
 
  private:
     void onMessage(uint32_t message,
         uint32_t param1,
-        const void * param2) override {
+        const void * param2) noexcept override {
         switch (message) {
             case CMXSMSG_ServerConnected:
-                // CMXSSDK says server connected, now we can receive data
-                mConnected = true;
+                {
+                    msg_Info(mVlcIntF, "server connect success.\n");
+                    mConnected = true;
+                }
                 break;
             case CMXSMSG_ServerConnectFailed:
                 {
-                    const CMXSServerConnectFailedMsgData_t * data(
-                        reinterpret_cast<const CMXSServerConnectFailedMsgData_t *>(param2));
-                    // param1 is error code, data->mErrorInfo is the detailed reason.
-                    // If data->mFailedNetDevicesCount is none zero,
-                    //   it meas there are data->mFailedNetDevicesCount devices failed.
-                    vlc_dialog_display_error(mVlcObj, "Failed to connect cmxs", data->mErrorInfo);
-                    msg_Err(mVlcIntF, "Failed to connect cmxs: %u(%s)", param1, data->mErrorInfo);
-                    switch (param1) {
-                        default:
-                            // We can check param1.
-                            // For example, if param1 is CMXSERR_ServiceUnavailable,
-                            // We can modify the setting on Caton Media XStream platform and then open the media again.
-                            break;
-                    }
+                    const CMXSServerConnectFailedMsgData_t * data =
+                        reinterpret_cast<const CMXSServerConnectFailedMsgData_t *>(param2);
+                    msg_Err(mVlcIntF, "connect failed: %s.\n", data->mErrorInfo);
+                }
+                break;
+            case CMXSMSG_DataReady:
+                {
+                    msg_Info(mVlcIntF, "Data ready\n");
+                }
+                break;
+            case CMXSMSG_DataServerState:
+                {
+                    const CMXSDataServerStateMsgData_t * data =
+                        reinterpret_cast<const CMXSDataServerStateMsgData_t *>(param2);
+                    msg_Info(mVlcIntF, "data server state: %u\n", data->mDataServerConnectState);
+                }
+                break;
+            case CMXSMSG_DataServerLinkState:
+                {
+                    const CMXSDataServerLinkStateMsgData_t * data =
+                        reinterpret_cast<const CMXSDataServerLinkStateMsgData_t *>(param2);
+                    msg_Info(mVlcIntF, "CMXS data server link state: device: %s, state: %u\n",
+                        data->mNetDevice, data->mDataServerConnectState);
                 }
                 break;
             case CMXSMSG_Stat:
+                {
+                    if (param1) {
+                        // for receiver, cannot go here
+                        break;
+                    }
+                    const CMXSReceiveStatMsgData_t * data =
+                        reinterpret_cast<const CMXSReceiveStatMsgData_t *>(param2);
+                    msg_Info(mVlcIntF, "receive stat: mLastSize: %u\n", data->mLastSize);
+                }
+                break;
+            case CMXSMSG_StreamParamChanged:
+                {
+                    const CMXSStreamParamChangedMsgData_t * data =
+                        reinterpret_cast<const CMXSStreamParamChangedMsgData_t *>(param2);
+                    msg_Info(mVlcIntF, "stream param changed from platform: %s, should re-create the stream\n",
+                        data->mDesc);
+                }
+                break;
+            case CMXSMSG_ConnectProgress:
+                {
+                    const CMXSConnectProgressMsgData_t * data =
+                        reinterpret_cast<const CMXSConnectProgressMsgData_t *>(param2);
+                    msg_Info(mVlcIntF, "CMXS progress: %s\n", data->mDescription);
+                }
                 break;
             case CMXSMSG_ERROR:
                 {
                     switch (param1) {
-                        case CMXSERR_ServiceUnavailable:
-                            // service unavailable.
-                            // We can modify the setting on Caton Media XStream platform and then open the media again.
-                            vlc_dialog_display_error(mVlcObj, "Service unavailable", "Please check your settings");
-                            msg_Err(mVlcIntF, "Service unavailable");
+                        case CMXSERR_DataPortDetectFailed:
+                            {
+                                const CMXSDataPortDetectFailedMsgData_t * data =
+                                    reinterpret_cast<const CMXSDataPortDetectFailedMsgData_t *>(param2);
+                                for (uint32_t i = 0; i < data->mPortsCount; ++i) {
+                                    msg_Err(mVlcIntF, "data port detect failed, expect port: %u\n", data->mPorts[i]);
+                                }
+                            }
                             break;
                         case CMXSERR_NoMem:
-                            vlc_dialog_display_error(mVlcObj, "No mem", "No mem");
-                            msg_Err(mVlcIntF, "No mem");
+                            {
+                                msg_Err(mVlcIntF, "NoMem\n");
+                            }
                             break;
-                        case CMXSERR_DataServerLost:
-                        case CMXSERR_DataPortDetectFailed:
+                        case CMXSERR_ServiceUnavailable:
+                            {
+                                const CMXSUnAvailableMsgData_t * data =
+                                    reinterpret_cast<const CMXSUnAvailableMsgData_t *>(param2);
+                                msg_Err(mVlcIntF, "service unavailable: %s\n", data->mErrorInfo);
+                            }
+                            break;
                         default:
-                        break;
+                            msg_Err(mVlcIntF, "error: %d(%s)\n", param1, cmxssdk_error_str(param1));
+                            break;
                     }
-                    break;
                 }
+                break;
             case CMXSMSG_WARNING:
                 {
                     switch (param1) {
-                        case CMXSERR_Congestion:
                         case CMXSERR_NotReceiveDataInTime:
+                            msg_Err(mVlcIntF, "warning: NotReceiveDataInTime\n");
+                            break;
                         default:
+                            msg_Err(mVlcIntF, "warning: %d(%s)\n", param1, cmxssdk_error_str(param1));
                             break;
                     }
                 }
+            default:
+                break;
         }
     }
 
@@ -197,7 +246,7 @@ class CxsReceiver : public CMXSListener {
         memset(&cmxsCfg, 0, sizeof(CMXSConfig_t));
         cmxsCfg.mServer = mSettings.at(SETTING_ITEM_SERVER).c_str();
         cmxsCfg.mDeviceId = mSettings.at(SETTING_ITEM_DEVICE).c_str();
-        CMXSErr err = CMXSSDK::init(&cmxsCfg);
+        CMXSErr err = CMXSSDK::init(&cmxsCfg, this);
         if (err != CMXSERR_OK) {
             vlc_dialog_display_error(mVlcObj, "Failed to init cmxs", cmxssdk_error_str(err));
             msg_Err(mVlcIntF, "Failed to init cmxs: %s", cmxssdk_error_str(err));
@@ -257,17 +306,17 @@ class CxsReceiver : public CMXSListener {
     }
 
     static block_t * block(stream_t *access, bool *eof) {
-        CxsReceiver * me = reinterpret_cast<CxsReceiver *>(access->p_sys);
+        CMXSReceiver * me = reinterpret_cast<CMXSReceiver *>(access->p_sys);
         if (!me->mConnected) {
             return 0;
         }
-        uint32_t dataLen = me->mDataLen;
+        uint32_t dataLen = static_cast<uint32_t>(me->mDataLen);
         block_t * pkt = ::block_Alloc(dataLen);
         if (!pkt) {
             return nullptr;
         }
 
-        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, dataLen, 100);
+        CMXSErr ret = me->mReceiver->receive(pkt->p_buffer, &dataLen, 0, 100);
         switch (ret) {
             case CMXSERR_OK:
                 pkt->i_buffer = dataLen;
@@ -289,7 +338,7 @@ class CxsReceiver : public CMXSListener {
                 ::block_Release(pkt);
                 return nullptr;
             case CMXSERR_InvalidArgs:
-            case CMXSERR_NotFound:
+                return nullptr;
             default:
                 ::block_Release(pkt);
                 vlc_dialog_display_error(me->mVlcObj, "error", cmxssdk_error_str(ret));
@@ -298,7 +347,7 @@ class CxsReceiver : public CMXSListener {
     }
 
     static int control(stream_t *access, int query, va_list args) {
-        CxsReceiver * me = reinterpret_cast<CxsReceiver *>(access->p_sys);
+        CMXSReceiver * me = reinterpret_cast<CMXSReceiver *>(access->p_sys);
         switch (query) {
             case STREAM_CAN_SEEK:
             case STREAM_CAN_FASTSEEK:
@@ -441,7 +490,7 @@ static int cmxsOpen(vlc_object_t *obj) {
     stream_t *access = reinterpret_cast<stream_t *>(obj);
     intf_thread_t *intf = reinterpret_cast<intf_thread_t *>(obj);
     try {
-        CxsReceiver * receiver = new CxsReceiver(obj);
+        CMXSReceiver * receiver = new CMXSReceiver(obj);
     } catch (...) {
         return VLC_ENOMEM;
     }
@@ -451,7 +500,7 @@ static int cmxsOpen(vlc_object_t *obj) {
 
 static void cmxsClose(vlc_object_t *obj) {
     stream_t *access = reinterpret_cast<stream_t *>(obj);
-    CxsReceiver *sys = reinterpret_cast<CxsReceiver *>(access->p_sys);
+    CMXSReceiver *sys = reinterpret_cast<CMXSReceiver *>(access->p_sys);
     if (sys) {
         delete sys;
         access->p_sys = nullptr;
@@ -471,7 +520,7 @@ set_subcategory(SUBCAT_INPUT_ACCESS);
 set_capability("access", 10);
 set_callbacks(cmxsOpen, cmxsClose);
 add_shortcut("cmxs");
-add_string(CxsReceiver::SETTING_ITEM_DEVICE, "", "device", "unique device id in your Caton Id.", false)
-add_string(CxsReceiver::SETTING_ITEM_KEY, "", "key", "cmxs key provided by Caton.", false)
-add_string(CxsReceiver::SETTING_ITEM_DATA_LEN, "1316", "data length(bytes)", "Data max length in bytes.", false)
+add_string(CMXSReceiver::SETTING_ITEM_DEVICE, "", "device", "unique device id in your Caton Id.", false)
+add_string(CMXSReceiver::SETTING_ITEM_KEY, "", "key", "cmxs key provided by Caton.", false)
+add_string(CMXSReceiver::SETTING_ITEM_DATA_LEN, "1316", "data length(bytes)", "Data max length in bytes.", false)
 vlc_module_end();

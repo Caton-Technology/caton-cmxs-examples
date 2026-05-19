@@ -35,6 +35,10 @@ static bool main_output_running = false;
 extern int s_g_cmxs_init;
 extern const char* s_g_host;
 extern const char* s_g_deviceId;
+
+// Global instance of MyGlobalListener
+static MyGlobalListener s_globalListener;
+MyGlobalListener* g_globalListener = &s_globalListener;
 void main_output_init() {
     blog(LOG_INFO, "main_output_init");
     if (main_out)
@@ -61,6 +65,7 @@ void main_output_gbl_init() {
     obs_data_set_string(settings, "server", conf->host.toUtf8().constData());
     obs_data_set_string(settings, "deviceId", conf->deviceId.toUtf8().constData());
     CMXSConfig_t cmxsCfg;
+    memset(&cmxsCfg, 0, sizeof(CMXSConfig_t));
     cmxsCfg.mServer = obs_data_get_string(settings, "server");
     cmxsCfg.mDeviceId = obs_data_get_string(settings, "deviceId");
     if (s_g_host) {
@@ -79,7 +84,7 @@ void main_output_gbl_init() {
     if (!s_g_deviceId) {
         return;
     }
-    CMXSErr err = CMXSSDK::init(&cmxsCfg);
+    CMXSErr err = CMXSSDK::init(&cmxsCfg, g_globalListener);
     blog(LOG_INFO,
         "CMXSSDK::init: Init CMXS main output with param, %s, %s",
         cmxsCfg.mServer,

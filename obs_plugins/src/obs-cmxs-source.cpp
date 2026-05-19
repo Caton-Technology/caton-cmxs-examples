@@ -25,6 +25,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/profiler.h>
+// #include <util/circlebuf.h>
 #include <vector>
 #include <unordered_map>
 #include "plugin-main.h"
@@ -91,12 +92,12 @@ const char* s_g_deviceId = nullptr;
 #define MY_SLEEP sleep
 #endif
 
-class MyListener : public CMXSListener {
+class MyRecvListener : public CMXSListener {
  public:
-    MyListener() : connecting_state(0) {}
+    MyRecvListener() : connecting_state(0) {}
     void onMessage(uint32_t message,
         uint32_t param1,
-        const void * param2) override {
+        const void * param2) noexcept override {
         (void)param2;
         switch (message) {
         case CMXSMSG_ServerConnected:
@@ -294,9 +295,9 @@ void cmxs_source_thread_stop(cmxs_source_t *s) {
             s->videoCodecContext = nullptr;
         }
         if (s->audioCodecContextMap) {
-        for (auto& audioContextPair : *(s->audioCodecContextMap)) {
+            for (auto& audioContextPair : *(s->audioCodecContextMap)) {
                 // avcodec_close(audioContextPair.second);
-            avcodec_free_context(&audioContextPair.second);
+                avcodec_free_context(&audioContextPair.second);
             }
         }
         if (s->cmxs_ffmpeg_source) {
@@ -389,7 +390,7 @@ static void cmxs_source_destroy(void *data) {
     }
     if (stream->listener) {
         blog(LOG_INFO, "destroy listener");
-        MyListener* myListenerPtr = static_cast<MyListener*>(stream->listener);
+        MyRecvListener* myListenerPtr = static_cast<MyRecvListener*>(stream->listener);
         delete myListenerPtr;
         stream->listener = nullptr;
     }
@@ -577,19 +578,17 @@ void* av_source_thread(void *data) {
         } else {
             putPkt2Q(s->audioQ, s->audio_mtx, packet);
         }
-        // av_packet_unref(packet);
     }
     {
         std::unique_lock<std::mutex> locker(*s->video_mtx);
-        // blog(LOG_INFO,"Insert to s->audioQ");
         s->videoQ->clear();
     }
 
     {
         std::unique_lock<std::mutex> locker(*s->audio_mtx);
-        // blog(LOG_INFO,"Insert to s->audioQ");
         s->audioQ->clear();
     }
+
     av_packet_free(&packet);
     av_dict_free(&options);
     blog(LOG_INFO, "exit av_thread");
@@ -610,16 +609,16 @@ void *cmxs_source_thread(void *data) {
         server_addr.sin_port = htons(s->internalPort);
     }
     if (s->listener) {
-        MyListener* myListenerPtr = static_cast<MyListener*>(s->listener);
+        MyRecvListener* myListenerPtr = static_cast<MyRecvListener*>(s->listener);
         delete myListenerPtr;
         s->listener = nullptr;
         s->running = false;
         blog(LOG_INFO, "free listener");
     }
-    MyListener * myListener = nullptr;
+    MyRecvListener * myListener = nullptr;
 
     try {
-        myListener = new MyListener();
+        myListener = new MyRecvListener();
     } catch (...) {
         blog(LOG_INFO, "No mem");
         s->running = false;
@@ -655,7 +654,7 @@ void *cmxs_source_thread(void *data) {
         // blog(LOG_INFO, "Enter while, %p", s->receiver);
         int bytesSent = 0;
         size = currentBufsize;
-        CMXSErr err = s->receiver->receive(buf, size, 1000);
+        CMXSErr err = s->receiver->receive(buf, &size, 0, 1000);
         // blog(LOG_INFO, "Enter while, receive return %d", err);
         switch (err) {
         case CMXSERR_OK:
@@ -745,6 +744,7 @@ void* av_video_thread(void *data) {
                     msgQSwap.pop_front();
                     continue;
                 }
+
                 ret = avcodec_send_packet(s->videoCodecContext, packet);
                 if (ret < 0) {
                     blog(LOG_INFO, "Error submitting the packet to the decoder");
@@ -906,7 +906,7 @@ void cmxs_source_update(void *data, obs_data_t *settings) {
         if (!s_g_deviceId) {
             return;
         }
-        CMXSErr err = CMXSSDK::init(&cmxsCfg);
+        CMXSErr err = CMXSSDK::init(&cmxsCfg, g_globalListener);
         blog(LOG_INFO,
             "CMXSSDK::init: Init CMXS main output with param, %s, %s",
             cmxsCfg.mServer,

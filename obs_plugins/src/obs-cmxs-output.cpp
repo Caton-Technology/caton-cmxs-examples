@@ -25,6 +25,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/profiler.h>
+// #include <util/circlebuf.h>
 #include <vector>
 #include <unordered_map>
 #include "plugin-main.h"
@@ -64,11 +65,11 @@ extern int s_g_cmxs_init;
 #else
 #define MY_SLEEP sleep
 #endif
-class MyListener : public CMXSListener {
+class MySendListener : public CMXSListener {
  public:
     void onMessage(uint32_t message,
         uint32_t param1,
-        const void * param2) override {
+        const void * param2) noexcept override {
         (void)param2;
         switch (message) {
         case CMXSMSG_ServerConnected:
@@ -95,7 +96,7 @@ class MyListener : public CMXSListener {
     }
 };
 
-MyListener * s_g_myListener;
+MySendListener * s_g_mySendListener;
 void myLogCallback(int level, const char * format, ...) {
     UNUSED_PARAMETER(level);
     char buffer[1024];
@@ -143,8 +144,11 @@ struct cmxs_output {
 const char *cmxs_output_getname(void *) {
     return obs_module_text("CMXSPlugin.OutputName");
 }
-
+#if FF_API_AVIO_WRITE_NONCONST
+int write_buffer(void *opaque, uint8_t *buf, int buf_size) {
+#else
 int write_buffer(void *opaque, const uint8_t *buf, int buf_size) {
+#endif
     struct cmxs_output *stream = static_cast<struct cmxs_output *>(opaque);
 
     CMXSErr err = stream->sender->send(buf, buf_size, -1);
@@ -171,6 +175,10 @@ static bool new_stream(struct cmxs_output *ffm, AVStream **stream,
     (*stream)->id = ffm->cmxs_ffmpeg_output->nb_streams - 1;
     return true;
 }
+
+
+
+
 
 void CreateVideoEncoder(void *data) {
     blog(LOG_INFO,
@@ -288,6 +296,8 @@ static bool create_audio_stream(struct cmxs_output *stream,
         av_get_default_channel_layout(context->channels);
     if (aoi.speakers == SPEAKERS_4POINT1)
         context->channel_layout = av_get_channel_layout("4.1");
+    else if (aoi.speakers == SPEAKERS_5POINT1)
+        context->channel_layout = av_get_channel_layout("5.1");
 #else
     av_channel_layout_default(&context->ch_layout, channels);
     if (aoi.speakers == SPEAKERS_4POINT1) {
@@ -298,6 +308,8 @@ static bool create_audio_stream(struct cmxs_output *stream,
         #else
         context->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_4POINT1;
         #endif
+    } else if (aoi.speakers == SPEAKERS_5POINT1) {
+        context->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_5POINT1;
     }
 #endif
     context->sample_fmt = AV_SAMPLE_FMT_S16;
@@ -407,7 +419,6 @@ static bool cmxs_output_start(void *data) {
         return false;
     }
 
-
     blog(LOG_INFO, "avformat_alloc_output_context2\n");
     int ret = avformat_alloc_output_context2(&stream->cmxs_ffmpeg_output, nullptr, "mpegts", nullptr);
     if (ret < 0) {
@@ -447,9 +458,9 @@ static bool cmxs_output_start(void *data) {
     streamCfg.mStreamkey = stream->streamKey;
     streamCfg.mConnectTimeOut = 3000;
 
-    s_g_myListener = nullptr;
+    s_g_mySendListener = nullptr;
     try {
-        s_g_myListener = new MyListener();
+        s_g_mySendListener = new MySendListener();
     } catch (...) {
         blog(LOG_INFO, "No mem\n");
         return false;
@@ -458,7 +469,7 @@ static bool cmxs_output_start(void *data) {
     fillStreamParam(conf->mSelectedNic, streamCfg);
     s_g_connecting_state = 1;
     blog(LOG_INFO, "cmxs_output_start: fillStreamParam done");
-    stream->sender = Sender::create(&streamCfg, s_g_myListener);
+    stream->sender = Sender::create(&streamCfg, s_g_mySendListener);
     if (!stream->sender) {
         blog(LOG_INFO, "Sender::create failed\n");
         releaseStreamParamMemory(streamCfg);
@@ -474,8 +485,8 @@ static bool cmxs_output_start(void *data) {
         Sender::destroy(stream->sender);
         releaseStreamParamMemory(streamCfg);
         stream->sender = nullptr;
-        delete s_g_myListener;
-        s_g_myListener = nullptr;
+        delete s_g_mySendListener;
+        s_g_mySendListener = nullptr;
         return false;
     }
     releaseStreamParamMemory(streamCfg);
@@ -514,9 +525,9 @@ static void cmxs_output_stop(void *data, uint64_t ts) {
 
     Sender::destroy(stream->sender);
     s_g_connecting_state = 1;
-    if (s_g_myListener) {
-        delete s_g_myListener;
-        s_g_myListener = nullptr;
+    if (s_g_mySendListener) {
+        delete s_g_mySendListener;
+        s_g_mySendListener = nullptr;
     }
     Config *conf = Config::Current();
     if (!conf) {
